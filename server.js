@@ -79,7 +79,7 @@ var superAdminRights = function (req, res, next) {
   else next();
 };
 
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public/img/posts')));
 
 require('./app/routes/auth.js')(app, jwtModule, userModel, tokenVerify, superAdminRights);
 require('./app/routes/users.js')(app, userModel, tokenVerify, superAdminRights);
