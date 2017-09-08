@@ -6,9 +6,12 @@ const fs = require('fs');
 module.exports = function (app, tokenVerify, originalPath) {
 
     setInterval(function() {
-        post.find({}, 'title', function (err, posts) { //fetch all posts
-            if (err) res.send(err);
-            posts = posts.map(post=>post.title+'.jpg'); //remove everything except title in posts
+        post.find({}, '_id', function (err, posts) { //fetch all posts
+            if (err) {
+                console.log(err);
+                return;
+            }
+            posts = posts.map(post=>post._id+'.jpeg'); //remove everything except title in posts
             let filesPath = path.join(originalPath, 'public/img/posts');
             fs.readdir(filesPath, (err, files) => { //get all filenames
                 if (files.length)
@@ -16,43 +19,37 @@ module.exports = function (app, tokenVerify, originalPath) {
                         if(!~posts.indexOf(file)) //if filename doesn't exist in posts - it's wrong
                         fs.unlink(filesPath+'/'+file, err => {
                             if (err) console.log(err);
-                            else console.log('success');
+                            else console.log('successful deleting of excess file');
                         });
                     });
                 else {
                     console.log('no files');
+                    return;
                 }
             });
         });
-    },1000*2);
+    },1000*60*45);
 
   app.post('/api/posts/new', tokenVerify, function(req, res) {
-      let createPost = newPost => {
-          post.create({
-              description: newPost.description,
-              creatorId: req.decoded.id,
-              creator: req.decoded.username,
-              title: newPost.title
-          }, function (err, post) {
-                if (err) return res.send(err);
-                // res.send('File uploaded!');
-                return res.json(post);
-          });
-      };
-
       let description = req.body.description;
-      let title = req.body.title || `${description.split(' ')[0]} - ${req.decoded.username}`
+      let title = req.body.title || `${description.split(' ')[0]} - ${req.decoded.username}`;
 
-      if (!req.files)
-          return createPost({description: description, title: title})
-      else {
-          let file = req.files.file;
-          console.log(file);
-          file.mv(originalPath+'/public/img/posts/'+title+'.jpg', function(err) {
-              if (err) return res.status(500).send(err);
-              return createPost({description: description, title: title});
-          });
-      }
+      post.create({
+          description: description,
+          creatorId: req.decoded.id,
+          creator: req.decoded.username,
+          title: title
+      }, function (err, post) {
+            if (err) return res.send(err);
+            else if (!req.files) return res.json(post);
+            else {
+                let file = req.files.file;
+                file.mv(originalPath+'/public/img/posts/'+post._id+'.jpeg', function(err) {
+                    if (err) return res.status(500).send(err);
+                    else return res.json(post);
+                });
+            }
+      });
   });
 
   app.get('/api/posts', function (req, res) {
