@@ -25,7 +25,8 @@ http.createServer(app).listen(app.get('port'), function(){
 });
 
 app.set('secret', config.get('secret'));
-app.get('/songs', (req, res, next) => {
+app.get('/api/songs', (req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
     let filesPath = path.join(__dirname, 'public/mp3');
     fs.readdir(filesPath, (err, files) => { //get all filenames
         if (files.length) {
