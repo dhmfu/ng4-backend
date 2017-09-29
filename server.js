@@ -1,19 +1,22 @@
-var express = require('express');
-var cors = require('cors');
-var errorhandler = require('errorhandler')
-var http = require('http');
-var morgan = require('morgan');
-var path = require('path');
-var bodyParser = require('body-parser');
-var methodOverride = require('method-override');
-var jwtModule = require('jsonwebtoken');
-var fileUpload = require('express-fileupload');
+const express = require('express');
+const cors = require('cors');
+const errorhandler = require('errorhandler')
+const http = require('http');
+const morgan = require('morgan');
+const path = require('path');
+const fs = require('fs');
+const bodyParser = require('body-parser');
+const methodOverride = require('method-override');
+const jwtModule = require('jsonwebtoken');
+const fileUpload = require('express-fileupload');
+const nodeID3 = require('node-id3');
+const _ = require('underscore');
 
-var mongoose = require('./app/mongoose');
-var config = require('./config');
-var userModel = require('./app/models/user').User;
+const mongoose = require('./app/mongoose');
+const config = require('./config');
+const userModel = require('./app/models/user').User;
 
-var app = express();
+let app = express();
 app.use(fileUpload());
 
 app.set('port', config.get('port'));
@@ -22,7 +25,24 @@ http.createServer(app).listen(app.get('port'), function(){
 });
 
 app.set('secret', config.get('secret'));
-
+app.get('/songs', (req, res, next) => {
+    let filesPath = path.join(__dirname, 'public/mp3');
+    fs.readdir(filesPath, (err, files) => { //get all filenames
+        if (files.length) {
+            let songs = [];
+            files.forEach(file => {
+                let read = nodeID3.read(path.join(filesPath, file));
+                read = _.omit(read, 'image', 'encodedBy', 'comment');
+                songs.push(read);
+            });
+            return res.json(songs);
+        }
+        else {
+            console.log('no files');
+            return res.send('no files');
+        }
+    });
+});
 app.use(morgan('dev'));
 app.use(cors());
 
@@ -32,27 +52,20 @@ app.use(bodyParser.json({type: 'application/vnd.api+json'}));
 app.use(bodyParser.json({type: 'application/x-www-form-urlencoded'}));
 app.use(bodyParser.text());
 app.use(methodOverride('X-HTTP-Method-Override'));
-app.use(function(err, req, res, next) {
-  if (app.get('env') == 'development') {
-    errorhandler(err, req, res, next);
-  } else {
-    res.send(500);
-  }
-});
 
-var tokenVerify = function(req, res, next) {
+let tokenVerify = (req, res, next) => {
   var token = req.body.token || req.query.token || req.headers['x-access-token'];
   var jwt = jwtModule, User = userModel;
   // decode token
   if (token) {
     // verifies secret and checks exp
-    jwt.verify(token, app.get('secret'), function(err, decoded) {
+    jwt.verify(token, app.get('secret'), (err, decoded) => {
       if (err) {
         return res.status(401).json({ success: false, message: 'Failed to authenticate token.' });
       } else {
         // if everything is good, save to request for use in other routes
         req.decoded = decoded;
-        User.findById(decoded.id, function (err, user) {
+        User.findById(decoded.id, (err, user) => {
           if (err) res.send(err);
           if (user.token==token) {
             next();
@@ -73,7 +86,7 @@ var tokenVerify = function(req, res, next) {
   }
 };
 
-var superAdminRights = function (req, res, next) {
+let superAdminRights = (req, res, next) => {
   if (req.query.forLogin == 'true') return next();
   if (!req.decoded.superAdmin) return res.status(403).json({ success: false, message: 'This user is not Super-Admin.'});
   else next();

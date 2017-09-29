@@ -1,70 +1,60 @@
-var path = require('path');
+const path = require('path');
 
-module.exports = function (app, jwt, User, tokenVerify, superAdminRights) {
+module.exports = (app, jwt, User, tokenVerify, superAdminRights) => {
 
-  app.post("/api/login", function(req, res) {
-    var name, password;
+  app.post("/api/login", (req, res) => {
+    let name, password, body;
     if (typeof req.body == 'object') {
         name = req.body.name;
         password = req.body.password;
     } else {
-        var body = JSON.parse(req.body);
+        body = JSON.parse(req.body);
         name = body.name;
         password = body.password;
     }
 
-    if(!name){
-      res.status(401).json({message: "No login provided", token: null});
-    } else if (!password) {
-        res.status(401).json({message: "No password provided", token: null});
-    }
-    else{
-      User.findOne({ username: name }, function (err, user) {
+    if(!name) res.status(401).json({message: "No login provided", token: null});
+     else if (!password) res.status(401).json({message: "No password provided", token: null});
+    else {
+      User.findOne({ username: name }, (err, user) => {
         if (err) {
           console.log(err);
-          res.status(500).json({message:"Server Error", err: err});
-          return;
+          return res.status(500).json({message:"Server Error", err: err});
         }
         if(!user){
           console.log(user);
-          res.status(401).json({message:"No such user found"});
-          return;
+          return res.status(401).json({message:"No such user found"});
         }
-        if(!user.checkPassword(password)){
-          res.status(401).json({message:"Incorrect password"});
-          return;
-        }
-        var payload = {id: user.id, superAdmin: user.superAdmin, username: user.username};
-        var token = jwt.sign(payload, app.get('secret'), {expiresIn: '2 days'});
+        if(!user.checkPassword(password))
+          return res.status(401).json({message:"Incorrect password"});
+
+        const payload = {id: user.id, superAdmin: user.superAdmin, username: user.username};
+        const token = jwt.sign(payload, app.get('secret'), {expiresIn: '2 days'});
         user.token = token;
-        user.save(function (err, updatedUser) {
-          if (err) res.send(err);
-          res.json({message: "ok", token: token});
+        user.save((err, updatedUser) => {
+          if (err) return res.send(err);
+          return res.json({message: "ok", token: token});
         });
       });
     }
   });
 
   // // route to test if the user is logged in or not
-  app.get('/api/loggedin', tokenVerify, superAdminRights, function(req, res) {
-    res.json({ success: true, message: 'User is authenticated.' });
-  });
+  app.get('/api/loggedin', tokenVerify, superAdminRights,
+  (req, res) => res.json({ success: true, message: 'User is authenticated.' }));
 
   // route to log out
-  app.post('/api/logout', tokenVerify, function(req, res){
-    User.findById(req.decoded.id, function (err, user) {
-      if (err) res.send(err);
+  app.post('/api/logout', tokenVerify, (req, res) => {
+    User.findById(req.decoded.id, (err, user) => {
+      if (err) return res.send(err);
       user.token = '';
-      user.save(function (err, updatedUser) {
-        if (err) res.send(err);
-        res.json({message: "ok"});
+      user.save((err, updatedUser) => {
+        if (err) return res.send(err);
+        return res.json({message: "ok"});
       });
     });
   });
-  //==================================================================
 
-  app.get('/', function (req, res) {
-    res.sendFile('/public/index.html');
-  });
+  app.get('/', (req, res) => res.sendFile('/public/index.html'));
 
 };
