@@ -30,9 +30,11 @@ app.get('/songs', (req, res, next) => {
     fs.readdir(filesPath, (err, files) => { //get all filenames
         if (files.length) {
             let songs = [];
+            const necessaryKeys = ['album', 'genre', 'title', 'artist',
+            'trackNumber', 'year'];
             files.forEach(file => {
                 let read = nodeID3.read(path.join(filesPath, file));
-                read = _.omit(read, 'image', 'encodedBy', 'comment');
+                read = _.extend(_.pick(read, necessaryKeys), {filename: file});
                 songs.push(read);
             });
             return res.json(songs);
