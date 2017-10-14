@@ -9,9 +9,6 @@ const bodyParser = require('body-parser');
 const methodOverride = require('method-override');
 const jwtModule = require('jsonwebtoken');
 const fileUpload = require('express-fileupload');
-const _ = require('underscore');
-
-var ffmetadata = require("ffmetadata");
 
 const mongoose = require('./app/mongoose');
 const config = require('./config');
@@ -26,37 +23,7 @@ http.createServer(app).listen(app.get('port'), function(){
 });
 
 app.set('secret', config.get('secret'));
-app.get('/api/songs', (req, res, next) => {
-    res.set('Access-Control-Allow-Origin', '*');
-    let filesPath = path.join(__dirname, 'public/mp3');
-    fs.readdir(filesPath, (err, files) => { //get all filenames
-        if (files.length) {
-            let songs = [], index = 0;
-            const necessaryKeys = ['album', 'genre', 'title', 'artist',
-            'track', 'date'];
 
-            files.forEach(file => {
-                ffmetadata.read(path.join(filesPath, file), function(err, data) {
-                    if (err) console.error("Error reading metadata", err);
-                    else {
-                        data = _.omit(_.extend(
-                            _.pick(data, necessaryKeys),
-                            {filename: file, year: data.date}), 'date');
-                        songs.push(data);
-                        ++index;
-                        if(index==files.length) {
-                            return res.json(songs);
-                        }
-                    }
-                });
-            });
-        }
-        else {
-            console.log('no files');
-            return res.send('no files');
-        }
-    });
-});
 app.use(morgan('dev'));
 app.use(cors());
 
@@ -111,3 +78,4 @@ app.use(express.static(path.join(__dirname, 'public/img/posts')));
 require('./app/routes/auth.js')(app, jwtModule, userModel, tokenVerify, superAdminRights);
 require('./app/routes/users.js')(app, userModel, tokenVerify, superAdminRights);
 require('./app/routes/posts.js')(app, tokenVerify, __dirname);
+require('./app/routes/songs.js')(app, __dirname);
