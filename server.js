@@ -17,9 +17,22 @@ const userModel = require('./app/models/user').User;
 let app = express();
 app.use(fileUpload());
 
+var Watcher = require('file-watcher');
+
+var watcher = new Watcher({
+    root: path.join(__dirname, '/public/mp3')
+});
+
 app.set('port', config.get('port'));
 http.createServer(app).listen(app.get('port'), function(){
   console.log('Express server listening on port ' + app.get('port'));
+  watcher.watch();
+  watcher.on('create', function(event) {
+      console.log(event.newPath);
+  });
+  watcher.on('delete', function(event) {
+      console.log(event.oldPath);
+  });
 });
 
 app.set('secret', config.get('secret'));
