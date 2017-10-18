@@ -24,18 +24,41 @@ var watcher = new Watcher({
 });
 
 app.set('port', config.get('port'));
-http.createServer(app).listen(app.get('port'), function(){
-  console.log('Express server listening on port ' + app.get('port'));
-  watcher.watch();
-  watcher.on('create', function(event) {
-      console.log(event.newPath);
-  });
-  watcher.on('delete', function(event) {
-      console.log(event.oldPath);
-  });
+let server = http.createServer(app);
+let io = require('socket.io')(server);
+
+io.on('connection', (socket) => {
+    console.log('a user connected');
+    socket.on('disconnect', () => {
+        console.log('user disconnected');
+    });
+});
+
+server.listen(app.get('port'), () => {
+    console.log('Express server listening on port ' + app.get('port'));
+
+    watcher.watch();
+    watcher.on('create', function(event) {
+        console.log(event.newPath);
+    });
+    watcher.on('delete', function(event) {
+        console.log(event.oldPath);
+    });
+});
+
+app.use((req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    next();
 });
 
 app.set('secret', config.get('secret'));
+
+app.use((req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    next();
+});
+
+
 
 app.use(morgan('dev'));
 app.use(cors());

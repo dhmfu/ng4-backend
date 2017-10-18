@@ -7,7 +7,6 @@ const _ = require('underscore');
 module.exports = (app, originalPath) => {
 
     app.get('/api/songs', (req, res, next) => {
-        res.set('Access-Control-Allow-Origin', '*');
         const filesPath = path.join(originalPath, 'public/mp3');
         fs.readdir(filesPath, (err, files) => { //get all filenames
             if (files.length) {
