@@ -13,11 +13,11 @@ module.exports = (app, originalPath, io) => {
     });
 
     watcher.watch();
-    watcher.on('create', function(event) {
+    watcher.on('create', (event) => {
         io.emit('add song', event.newPath);
         console.log(event.newPath);
     });
-    watcher.on('delete', function(event) {
+    watcher.on('delete', (event) => {
         io.emit('delete song', event.oldPath);
         console.log(event.oldPath);
     });
@@ -40,21 +40,7 @@ module.exports = (app, originalPath, io) => {
                                 _.pick(data, necessaryKeys),
                                 {filename: file, year: data.date}), 'date');
                             if (data.artist && data.title) {
-                                const letter = data.artist[0].toLowerCase();
-                                let artist = data.artist.toLowerCase().replace(/\W/g,'_');
-                                artist = artist[artist.length-1] == '_' ? artist.slice(0, -1) : artist;
-                                let title = data.title.toLowerCase().replace(/\W/g,'_');
-                                title = title[title.length-1] == '_' ? title.slice(0, -1) : title;
-                                const url = `https://www.amalgama-lab.com/songs/${letter}/${artist}/${title}.html`;
-                                new Promise(function(resolve, reject) {
-                                    request(url, function (error, response, body) {
-                                        if(error) reject(error);
-                                        ret = body.match(/<div class="original">(\w|\W)*?<\/div>/ig);
-                                        ret = ret && ret.map(line => line.replace(/(<div class="original">)|(<\/div>)/g, "").trim())
-                                        .filter(line => line != '<br />').join('\n');
-                                        resolve(ret);
-                                    });
-                                }).then(result => {
+                                getLyrics(data).then(result => {
                                     data = _.extend(data, {lyrics: result});
                                     ++index;
                                     songs.push(data);
@@ -107,3 +93,26 @@ module.exports = (app, originalPath, io) => {
     });
 
 };
+
+function composeUrl(song) {
+    const letter = song.artist[0].toLowerCase();
+    let artist = song.artist.toLowerCase().replace(/\W/g,'_');
+    artist = artist[artist.length-1] == '_' ? artist.slice(0, -1) : artist;
+    let title = song.title.toLowerCase().replace(/\W/g,'_');
+    title = title[title.length-1] == '_' ? title.slice(0, -1) : title;
+    return `https://www.amalgama-lab.com/songs/${letter}/${artist}/${title}.html`;
+}
+
+function getLyrics(song) {
+    return new Promise((resolve, reject) => {
+        request(composeUrl(song), (error, response, body) => {
+            if(error) reject(error);
+            else {
+                ret = body.match(/<div class="original">(\w|\W)*?<\/div>/ig);
+                ret = ret && ret.map(line => line.replace(/(<div class="original">)|(<\/div>)/g, "").trim())
+                .filter(line => line != '<br />').join('\n');
+                resolve(ret);
+            }
+        });
+    });
+}
