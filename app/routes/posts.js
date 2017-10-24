@@ -5,7 +5,7 @@ const fs = require('fs');
 
 module.exports = (app, tokenVerify, originalPath) => {
 
-    setInterval(function() {
+    setInterval(() => {
         post.find({}, '_id', (err, posts) => { //fetch all posts
             if (err) {
                 console.log(err);

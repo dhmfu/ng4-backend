@@ -4,6 +4,7 @@ const ffmetadata = require("ffmetadata");
 const _ = require('underscore');
 const Watcher = require('file-watcher');
 const request = require('request');
+const songModel = require('../models/song');
 
 module.exports = (app, originalPath, io) => {
     const filesPath = path.join(originalPath, 'public/mp3');
@@ -22,52 +23,80 @@ module.exports = (app, originalPath, io) => {
         console.log(event.oldPath);
     });
 
-    app.get('/api/songs', (req, res, next) => {
-        fs.readdir(filesPath, (err, files) => { //get all filenames
-            if (files.length) {
-                let songs = [], index = 0;
+    setInterval(() => {
+        songModel.find({}, (err, songs) =>{
+            if (err) {
+                console.log(err);
+                return;
+            } else {
+                const songsFilenames = songs.map(song=>song.filename);
+                let index = 0;
                 const necessaryKeys = ['album', 'genre', 'title', 'artist',
                 'track', 'date'];
-
-                files.forEach(file => {
-                    ffmetadata.read(path.join(filesPath, file), (err, data) => {
-                        if (err) {
-                            ++index;
-                            console.error("Error reading metadata", err);
-                        }
-                        else {
-                            data = _.omit(_.extend(
-                                _.pick(data, necessaryKeys),
-                                {filename: file, year: data.date}), 'date');
-                            if (data.artist && data.title) {
-                                getLyrics(data).then(result => {
-                                    data = _.extend(data, {lyrics: result});
-                                    ++index;
-                                    songs.push(data);
-                                    if(index==files.length) {
-                                        return res.json(songs);
+                fs.readdir(filesPath, (err, files) => { //get all filenames
+                    if (files.length) {
+                        files.forEach(file => {
+                            if(!~songsFilenames.indexOf(file)) { //if file isn't in db
+                                ffmetadata.read(path.join(filesPath, file), (err, data) => {
+                                    if (err) {
+                                        ++index;
+                                        console.error("Error reading metadata", err);
+                                        if(index==files.length) {
+                                            return;
+                                        }
                                     }
-                                }).catch(err => {
-                                    ++index;
-                                    songs.push(data);
-                                    console.log(err);
+                                    else {
+                                        data = _.omit(_.extend(
+                                            _.pick(data, necessaryKeys),
+                                            {filename: file, year: data.date}), 'date');
+                                        if (data.artist && data.title) {
+                                            getLyrics(data).then(result => {
+                                                data = _.extend(data, {lyrics: result});
+                                                ++index;
+                                                songModel.create(data, (err, song) => {
+                                                    console.log(err?err:song._id);
+                                                });
+                                                if(index==files.length) {
+                                                    return
+                                                }
+                                            }).catch(err => {
+                                                ++index;
+                                                songModel.create(data, (err, song) => {
+                                                    console.log(err?err:song._id);
+                                                });
+                                                if(index==files.length) {
+                                                    return;
+                                                }
+                                                console.log(err);
+                                            });
+                                        }
+                                        else {
+                                            ++index;
+                                            songModel.create(data, (err, song) => {
+                                                console.log(err?err:song._id);
+                                            });
+                                            if(index==files.length) {
+                                                return;
+                                            }
+                                        }
+                                    }
                                 });
                             }
-                            else {
-                                ++index;
-                                songs.push(data);
-                                if(index==files.length) {
-                                    return res.json(songs);
-                                }
-                            }
-                        }
-                    });
+                        });
+                    }
+                    else {
+                        console.log('no files');
+                        return;
+                    }
                 });
             }
-            else {
-                console.log('no files');
-                return res.send('no files');
-            }
+        });
+    }, 1000*60*30);
+
+    app.get('/api/songs', (req, res, next) => {
+        songModel.find({}, (err, songs) => {
+            if (err) return res.send(err);
+            return res.json(songs);
         });
     });
 
@@ -80,7 +109,7 @@ module.exports = (app, originalPath, io) => {
         let index = 0;
         songs.forEach(song => {
             const songPath = path.join(filesPath, song.filename);
-            ffmetadata.write(songPath, _.omit(song, 'filename'), (err) => {
+            ffmetadata.write(songPath, _.omit(song, 'filename', 'lyrics'), (err) => {
                 if (err) console.error("Error wring metadata", err);
                 else {
                     ++index;
