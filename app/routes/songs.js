@@ -2,12 +2,27 @@ const path = require('path');
 const fs = require('fs');
 const ffmetadata = require("ffmetadata");
 const _ = require('underscore');
+const Watcher = require('file-watcher');
 
 
-module.exports = (app, originalPath) => {
+module.exports = (app, originalPath, io) => {
+    const filesPath = path.join(originalPath, 'public/mp3');
+
+    let watcher = new Watcher({
+        root: filesPath
+    });
+
+    watcher.watch();
+    watcher.on('create', function(event) {
+        io.emit('add song', event.newPath);
+        console.log(event.newPath);
+    });
+    watcher.on('delete', function(event) {
+        io.emit('delete song', event.oldPath);
+        console.log(event.oldPath);
+    });
 
     app.get('/api/songs', (req, res, next) => {
-        const filesPath = path.join(originalPath, 'public/mp3');
         fs.readdir(filesPath, (err, files) => { //get all filenames
             if (files.length) {
                 let songs = [], index = 0;

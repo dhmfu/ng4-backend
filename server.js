@@ -17,12 +17,6 @@ const userModel = require('./app/models/user').User;
 let app = express();
 app.use(fileUpload());
 
-var Watcher = require('file-watcher');
-
-var watcher = new Watcher({
-    root: path.join(__dirname, '/public/mp3')
-});
-
 app.set('port', config.get('port'));
 let server = http.createServer(app);
 let io = require('socket.io')(server);
@@ -36,14 +30,6 @@ io.on('connection', (socket) => {
 
 server.listen(app.get('port'), () => {
     console.log('Express server listening on port ' + app.get('port'));
-
-    watcher.watch();
-    watcher.on('create', function(event) {
-        console.log(event.newPath);
-    });
-    watcher.on('delete', function(event) {
-        console.log(event.oldPath);
-    });
 });
 
 app.use((req, res, next) => {
@@ -114,4 +100,4 @@ app.use(express.static(path.join(__dirname, 'public/img/posts')));
 require('./app/routes/auth.js')(app, jwtModule, userModel, tokenVerify, superAdminRights);
 require('./app/routes/users.js')(app, userModel, tokenVerify, superAdminRights);
 require('./app/routes/posts.js')(app, tokenVerify, __dirname);
-require('./app/routes/songs.js')(app, __dirname);
+require('./app/routes/songs.js')(app, __dirname, io);
