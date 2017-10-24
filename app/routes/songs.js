@@ -3,7 +3,7 @@ const fs = require('fs');
 const ffmetadata = require("ffmetadata");
 const _ = require('underscore');
 const Watcher = require('file-watcher');
-
+const request = require('request');
 
 module.exports = (app, originalPath, io) => {
     const filesPath = path.join(originalPath, 'public/mp3');
@@ -31,15 +31,48 @@ module.exports = (app, originalPath, io) => {
 
                 files.forEach(file => {
                     ffmetadata.read(path.join(filesPath, file), (err, data) => {
-                        if (err) console.error("Error reading metadata", err);
+                        if (err) {
+                            ++index;
+                            console.error("Error reading metadata", err);
+                        }
                         else {
                             data = _.omit(_.extend(
                                 _.pick(data, necessaryKeys),
                                 {filename: file, year: data.date}), 'date');
-                            songs.push(data);
-                            ++index;
-                            if(index==files.length) {
-                                return res.json(songs);
+                            if (data.artist && data.title) {
+                                const letter = data.artist[0].toLowerCase();
+                                let artist = data.artist.toLowerCase().replace(/\W/g,'_');
+                                artist = artist[artist.length-1] == '_' ? artist.slice(0, -1) : artist;
+                                let title = data.title.toLowerCase().replace(/\W/g,'_');
+                                title = title[title.length-1] == '_' ? title.slice(0, -1) : title;
+                                const url = `https://www.amalgama-lab.com/songs/${letter}/${artist}/${title}.html`;
+                                new Promise(function(resolve, reject) {
+                                    request(url, function (error, response, body) {
+                                        if(error) reject(error);
+                                        ret = body.match(/<div class="original">(\w|\W)*?<\/div>/ig);
+                                        ret = ret && ret.map(line => line.replace(/(<div class="original">)|(<\/div>)/g, "").trim())
+                                        .filter(line => line != '<br />').join('\n');
+                                        resolve(ret);
+                                    });
+                                }).then(result => {
+                                    data = _.extend(data, {lyrics: result});
+                                    ++index;
+                                    songs.push(data);
+                                    if(index==files.length) {
+                                        return res.json(songs);
+                                    }
+                                }).catch(err => {
+                                    ++index;
+                                    songs.push(data);
+                                    console.log(err);
+                                });
+                            }
+                            else {
+                                ++index;
+                                songs.push(data);
+                                if(index==files.length) {
+                                    return res.json(songs);
+                                }
                             }
                         }
                     });
