@@ -57,7 +57,7 @@ module.exports = (app, originalPath, io) => {
                                                     console.log(err?err:song._id);
                                                 });
                                                 if(index==files.length) {
-                                                    return
+                                                    return;
                                                 }
                                             }).catch(err => {
                                                 ++index;
@@ -101,21 +101,26 @@ module.exports = (app, originalPath, io) => {
     });
 
     app.post('/api/songs', (req, res, next) => {
-        res.set('Access-Control-Allow-Origin', '*');
         const filesPath = path.join(originalPath, 'public/mp3');
         const songs = req.body.map(song => {
             return _.omit(song, (value, key)=>value=='unknown');
         });
         let index = 0;
         songs.forEach(song => {
+            songModel.findById(song._id, (err, saveSong) =>{
+                Object.keys(song).forEach(key => {
+                    if(!(key=='_id'||key=='filename')) saveSong[key] = song[key]
+                });
+                saveSong.save((err, updatedSong) => {
+                    if (err) return res.send(err);
+                });
+            });
             const songPath = path.join(filesPath, song.filename);
-            ffmetadata.write(songPath, _.omit(song, 'filename', 'lyrics'), (err) => {
+            ffmetadata.write(songPath, _.omit(song, 'lyrics', '_id', 'filename'), (err) => {
                 if (err) console.error("Error wring metadata", err);
-                else {
-                    ++index;
-                    if(index==songs.length) {
-                        return res.end('ok');
-                    }
+                ++index;
+                if(index==songs.length) {
+                    return res.end('ok');
                 }
             });
         });
