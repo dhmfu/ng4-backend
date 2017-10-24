@@ -102,9 +102,7 @@ module.exports = (app, originalPath, io) => {
 
     app.post('/api/songs', (req, res, next) => {
         const filesPath = path.join(originalPath, 'public/mp3');
-        const songs = req.body.map(song => {
-            return _.omit(song, (value, key)=>value=='unknown');
-        });
+        const songs = req.body;
         let index = 0;
         songs.forEach(song => {
             songModel.findById(song._id, (err, saveSong) =>{
