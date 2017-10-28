@@ -91,7 +91,7 @@ module.exports = (app, originalPath, io) => {
                 });
             }
         });
-    }, 1000*2);
+    }, 1000*60);
 
     app.get('/api/songs', (req, res, next) => {
         songModel.find({}, (err, songs) => {
@@ -173,10 +173,26 @@ function updateSong(song, fileProperties, filesPath) {
         ffmetadata.write(songPath, fileProperties, (err) => {
             if (err) reject("Error wring metadata", err);
             else {
-                song.save((err, updatedSong) => {
-                    if (err) reject(err);
-                    else resolve();
-                });
+                if (!song.lyrics) {
+                    getLyrics(song).then(lyrics => {
+                        song.lyrics = lyrics;
+                        song.save((err, updatedSong) => {
+                            if (err) reject(err);
+                            else resolve();
+                        });
+                    }).catch(err => {
+                        console.log('Still', err);
+                        song.save((err, updatedSong) => {
+                            if (err) reject(err);
+                            else resolve();
+                        });
+                    });
+                } else {
+                    song.save((err, updatedSong) => {
+                        if (err) reject(err);
+                        else resolve();
+                    });
+                }
             }
         });
     });
