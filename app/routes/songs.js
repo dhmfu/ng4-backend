@@ -60,6 +60,7 @@ module.exports = (app, originalPath, io) => {
                                                     return;
                                                 }
                                             }).catch(err => {
+                                                console.log(err, data.artist, data.title);
                                                 ++index;
                                                 songModel.create(data, (err, song) => {
                                                     console.log(err?err:song._id);
@@ -67,7 +68,6 @@ module.exports = (app, originalPath, io) => {
                                                 if(index==files.length) {
                                                     return;
                                                 }
-                                                console.log(err);
                                             });
                                         }
                                         else {
@@ -91,7 +91,7 @@ module.exports = (app, originalPath, io) => {
                 });
             }
         });
-    }, 1000*60*30);
+    }, 1000*2);
 
     app.get('/api/songs', (req, res, next) => {
         songModel.find({}, (err, songs) => {
@@ -100,26 +100,60 @@ module.exports = (app, originalPath, io) => {
         });
     });
 
-    app.post('/api/songs', (req, res, next) => {
+    app.post('/api/songs/synchronize', (req, res, next) => {
         const filesPath = path.join(originalPath, 'public/mp3');
         const songs = req.body;
         let index = 0;
         songs.forEach(song => {
-            songModel.findById(song._id, (err, saveSong) =>{
+            songModel.findById(song._id, (err, saveSong) => {
                 Object.keys(song).forEach(key => {
                     if(!(key=='_id'||key=='filename')) saveSong[key] = song[key]
                 });
-                saveSong.save((err, updatedSong) => {
-                    if (err) return res.send(err);
+
+                const songPath = path.join(filesPath, saveSong.filename);
+                ffmetadata.write(songPath, _.omit(song, 'lyrics', '_id', 'filename'), (err) => {
+                    if (err) return console.error("Error wring metadata", err);
+                    else {
+                        saveSong.save((err, updatedSong) => {
+                            if (err) return res.send(err);
+                            else {
+                                ++index;
+                                if(index==songs.length) {
+                                    return res.end('ok');
+                                }
+                            }
+                        });
+                    }
                 });
             });
-            const songPath = path.join(filesPath, song.filename);
-            ffmetadata.write(songPath, _.omit(song, 'lyrics', '_id', 'filename'), (err) => {
-                if (err) console.error("Error wring metadata", err);
-                ++index;
-                if(index==songs.length) {
-                    return res.end('ok');
-                }
+        });
+    });
+
+    app.post('/api/songs/synchronize/multiple', (req, res, next) => {
+        const filesPath = path.join(originalPath, 'public/mp3');
+        const {properties, songs} = req.body;
+        let index = 0;
+        songs.forEach(songId => {
+            songModel.findById(songId, (err, saveSong) => {
+                Object.keys(properties).forEach(key => {
+                    saveSong[key] = properties[key];
+                });
+
+                const songPath = path.join(filesPath, saveSong.filename);
+                ffmetadata.write(songPath, properties, (err) => {
+                    if (err) return console.error("Error wring metadata", err);
+                    else {
+                        saveSong.save((err, updatedSong) => {
+                            if (err) return res.send(err);
+                            else {
+                                ++index;
+                                if(index==songs.length) {
+                                    return res.end('ok');
+                                }
+                            }
+                        });
+                    }
+                });
             });
         });
     });
@@ -141,9 +175,12 @@ function getLyrics(song) {
             if(error) reject(error);
             else {
                 ret = body.match(/<div class="original">(\w|\W)*?<\/div>/ig);
-                ret = ret && ret.map(line => line.replace(/(<div class="original">)|(<\/div>)/g, "").trim())
-                .filter(line => line != '<br />').join('\n');
-                resolve(ret);
+                if(!ret) reject('No lyrics');
+                else {
+                    ret = ret.map(line => line.replace(/(<div class="original">)|(<\/div>)/g, "").trim())
+                    .filter(line => line != '<br />').join('\n');
+                    resolve(ret);
+                }
             }
         });
     });
