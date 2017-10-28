@@ -101,7 +101,6 @@ module.exports = (app, originalPath, io) => {
     });
 
     app.post('/api/songs/synchronize', (req, res, next) => {
-        const filesPath = path.join(originalPath, 'public/mp3');
         const songs = req.body;
         let index = 0;
         songs.forEach(song => {
@@ -110,27 +109,17 @@ module.exports = (app, originalPath, io) => {
                     if(!(key=='_id'||key=='filename')) saveSong[key] = song[key]
                 });
 
-                const songPath = path.join(filesPath, saveSong.filename);
-                ffmetadata.write(songPath, _.omit(song, 'lyrics', '_id', 'filename'), (err) => {
-                    if (err) return console.error("Error wring metadata", err);
-                    else {
-                        saveSong.save((err, updatedSong) => {
-                            if (err) return res.send(err);
-                            else {
-                                ++index;
-                                if(index==songs.length) {
-                                    return res.end('ok');
-                                }
-                            }
-                        });
+                updateSong(saveSong, _.omit(song, 'lyrics', '_id', 'filename'), filesPath).then(() => {
+                    ++index;
+                    if(index==songs.length) {
+                        return res.end('ok');
                     }
-                });
+                }).catch((err) => res.end(err));
             });
         });
     });
 
     app.post('/api/songs/synchronize/multiple', (req, res, next) => {
-        const filesPath = path.join(originalPath, 'public/mp3');
         const {properties, songs} = req.body;
         let index = 0;
         songs.forEach(songId => {
@@ -139,21 +128,12 @@ module.exports = (app, originalPath, io) => {
                     saveSong[key] = properties[key];
                 });
 
-                const songPath = path.join(filesPath, saveSong.filename);
-                ffmetadata.write(songPath, properties, (err) => {
-                    if (err) return console.error("Error wring metadata", err);
-                    else {
-                        saveSong.save((err, updatedSong) => {
-                            if (err) return res.send(err);
-                            else {
-                                ++index;
-                                if(index==songs.length) {
-                                    return res.end('ok');
-                                }
-                            }
-                        });
+                updateSong(saveSong, properties, filesPath).then(() => {
+                    ++index;
+                    if(index==songs.length) {
+                        return res.end('ok');
                     }
-                });
+                }).catch((err) => res.end(err));
             });
         });
     });
@@ -181,6 +161,22 @@ function getLyrics(song) {
                     .filter(line => line != '<br />').join('\n');
                     resolve(ret);
                 }
+            }
+        });
+    });
+}
+
+function updateSong(song, fileProperties, filesPath) {
+    const songPath = path.join(filesPath, song.filename);
+
+    return new Promise((resolve, reject) => {
+        ffmetadata.write(songPath, fileProperties, (err) => {
+            if (err) reject("Error wring metadata", err);
+            else {
+                song.save((err, updatedSong) => {
+                    if (err) reject(err);
+                    else resolve();
+                });
             }
         });
     });
