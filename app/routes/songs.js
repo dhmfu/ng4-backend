@@ -91,7 +91,7 @@ module.exports = (app, originalPath, io) => {
                 });
             }
         });
-    }, 1000*60);
+    }, 1000*2);
 
     app.get('/api/songs', (req, res, next) => {
         songModel.find({}, (err, songs) => {
@@ -103,19 +103,13 @@ module.exports = (app, originalPath, io) => {
     app.post('/api/songs/synchronize', (req, res, next) => {
         const songs = req.body;
         let index = 0;
-        songs.forEach(song => {
-            songModel.findById(song._id, (err, saveSong) => {
-                Object.keys(song).forEach(key => {
-                    if(!(key=='_id'||key=='filename')) saveSong[key] = song[key]
-                });
-
-                updateSong(saveSong, _.omit(song, 'lyrics', '_id', 'filename'), filesPath).then(() => {
-                    ++index;
-                    if(index==songs.length) {
-                        return res.end('ok');
-                    }
-                }).catch((err) => res.end(err));
-            });
+        songs.forEach(songForUpdate => {
+            findAndUpdateSong(songForUpdate._id, songForUpdate, filesPath).then(() => {
+                ++index;
+                if(index==songs.length) {
+                    return res.end('ok');
+                }
+            }).catch(err => res.end(err));
         });
     });
 
@@ -123,18 +117,12 @@ module.exports = (app, originalPath, io) => {
         const {properties, songs} = req.body;
         let index = 0;
         songs.forEach(songId => {
-            songModel.findById(songId, (err, saveSong) => {
-                Object.keys(properties).forEach(key => {
-                    saveSong[key] = properties[key];
-                });
-
-                updateSong(saveSong, properties, filesPath).then(() => {
-                    ++index;
-                    if(index==songs.length) {
-                        return res.end('ok');
-                    }
-                }).catch((err) => res.end(err));
-            });
+            findAndUpdateSong(songId, properties, filesPath).then(() => {
+                ++index;
+                if(index==songs.length) {
+                    return res.end('ok');
+                }
+            }).catch(err => res.end(err));
         });
     });
 
@@ -170,6 +158,8 @@ function updateSong(song, fileProperties, filesPath) {
     const songPath = path.join(filesPath, song.filename);
 
     return new Promise((resolve, reject) => {
+        fileProperties = _.omit(_.extend(fileProperties,
+            {date: fileProperties.year}), 'year');
         ffmetadata.write(songPath, fileProperties, (err) => {
             if (err) reject("Error wring metadata", err);
             else {
@@ -181,7 +171,7 @@ function updateSong(song, fileProperties, filesPath) {
                             else resolve();
                         });
                     }).catch(err => {
-                        console.log('Still', err);
+                        console.log('Still', err, 'for ', song.artist, song.title);
                         song.save((err, updatedSong) => {
                             if (err) reject(err);
                             else resolve();
@@ -194,6 +184,19 @@ function updateSong(song, fileProperties, filesPath) {
                     });
                 }
             }
+        });
+    });
+}
+
+function findAndUpdateSong(songId, newSongProps, filesPath) {
+    return new Promise((resolve, reject) => {
+        songModel.findById(songId, (err, saveSong) => {
+            Object.keys(newSongProps).forEach(key => {
+                if(!(key=='_id'||key=='filename')) saveSong[key] = newSongProps[key]
+            });
+            const fileProperties = _.omit(newSongProps, 'lyrics','_id', 'filename');
+            updateSong(saveSong, fileProperties, filesPath).then(() => resolve())
+            .catch((err) => reject(err));
         });
     });
 }
