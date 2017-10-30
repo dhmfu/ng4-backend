@@ -94,10 +94,48 @@ module.exports = (app, originalPath, io) => {
     }, 1000*2);
 
     app.get('/api/songs', (req, res, next) => {
-        songModel.find({}, (err, songs) => {
+        const {
+            skip: skip = 0,
+            limit: limit = 5,
+            artist: artist = "",
+            title: title = "",
+            album: album = "",
+            year: year = "",
+            genre: genre = ""
+        } = req.query;
+        const callback = (err, songs) => {
             if (err) return res.send(err);
             return res.json(songs);
-        });
+        };
+        songModel.find({
+            artist: new RegExp(artist, "i"),
+            title: new RegExp(title, "i"),
+            album: new RegExp(album, "i"),
+            year: new RegExp(year, "i"),
+            genre: new RegExp(genre, "i")
+        }).limit(+limit).skip(+skip).exec(callback);
+    });
+
+    app.get('/api/songs/count', (req, res, next) => {
+        const {
+            artist: artist = "",
+            title: title = "",
+            album: album = "",
+            year: year = "",
+            genre: genre = ""
+        } = req.query;
+        const callback = (err, songsLength) => {
+            if (err) return res.send(err);
+            console.log(songsLength);
+            return res.json(songsLength);
+        };
+        songModel.count({
+            artist: new RegExp(artist, "i"),
+            title: new RegExp(title, "i"),
+            album: new RegExp(album, "i"),
+            year: new RegExp(year, "i"),
+            genre: new RegExp(genre, "i")
+        }).exec(callback);
     });
 
     app.post('/api/songs/synchronize', (req, res, next) => {
