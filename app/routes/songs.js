@@ -113,7 +113,7 @@ module.exports = (app, originalPath, io) => {
             album: new RegExp(album, "i"),
             year: new RegExp(year, "i"),
             genre: new RegExp(genre, "i")
-        }).limit(+limit).skip(+skip).exec(callback);
+        }).limit(+limit).skip(+skip).sort({artist: 1}).exec(callback);
     });
 
     app.get('/api/songs/count', (req, res, next) => {
@@ -126,7 +126,6 @@ module.exports = (app, originalPath, io) => {
         } = req.query;
         const callback = (err, songsLength) => {
             if (err) return res.send(err);
-            console.log(songsLength);
             return res.json(songsLength);
         };
         songModel.count({
@@ -136,6 +135,23 @@ module.exports = (app, originalPath, io) => {
             year: new RegExp(year, "i"),
             genre: new RegExp(genre, "i")
         }).exec(callback);
+    });
+
+    app.get('/api/songs/autocomplete', (req, res, next) => {
+        let response = {};
+        songModel.find().distinct('artist', (err, artists) => {
+            response['artist'] = artists.filter(artist=>artist);
+            songModel.find().distinct('genre', (err, genres) => {
+                response['genre'] = genres.filter(genre=>genre);
+                songModel.find().distinct('album', (err, albums) => {
+                    response['album'] = albums.filter(album=>album);
+                    songModel.find().distinct('year', (err, years) => {
+                        response['year'] = years.filter(year=>year);
+                        res.json(response);
+                    });
+                });
+            });
+        });
     });
 
     app.post('/api/songs/synchronize', (req, res, next) => {
