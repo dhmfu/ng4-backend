@@ -9,19 +9,19 @@ const songModel = require('../models/song');
 module.exports = (app, originalPath, io) => {
     const filesPath = path.join(originalPath, 'public/mp3');
 
-    let watcher = new Watcher({
-        root: filesPath
-    });
-
-    watcher.watch();
-    watcher.on('create', (event) => {
-        io.emit('add song', event.newPath);
-        console.log(event.newPath);
-    });
-    watcher.on('delete', (event) => {
-        io.emit('delete song', event.oldPath);
-        console.log(event.oldPath);
-    });
+    // let watcher = new Watcher({
+    //     root: filesPath
+    // });
+    //
+    // watcher.watch();
+    // watcher.on('create', (event) => {
+    //     io.emit('add song', event.newPath);
+    //     console.log(event.newPath);
+    // });
+    // watcher.on('delete', (event) => {
+    //     io.emit('delete song', event.oldPath);
+    //     console.log(event.oldPath);
+    // });
 
     setInterval(() => {
         songModel.find({}, (err, songs) =>{
@@ -138,19 +138,21 @@ module.exports = (app, originalPath, io) => {
     });
 
     app.get('/api/songs/autocomplete', (req, res, next) => {
-        let response = {};
-        songModel.find().distinct('artist', (err, artists) => {
-            response['artist'] = artists.filter(artist=>artist);
-            songModel.find().distinct('genre', (err, genres) => {
-                response['genre'] = genres.filter(genre=>genre);
-                songModel.find().distinct('album', (err, albums) => {
-                    response['album'] = albums.filter(album=>album);
-                    songModel.find().distinct('year', (err, years) => {
-                        response['year'] = years.filter(year=>year);
-                        res.json(response);
-                    });
+        songModel.find({}, (err, songs) => {
+            let response = {
+                artist: [],
+                title: [],
+                album: [],
+                track: [],
+                year: [],
+                genre: []
+            };
+            songs.forEach((song, index) => {
+                _.keys(response).forEach(key => {
+                    song[key] && response[key].push(song[key])
                 });
             });
+            res.json(response);
         });
     });
 
