@@ -23,7 +23,7 @@ module.exports = (app, originalPath, io) => {
     //     console.log(event.oldPath);
     // });
 
-    setInterval(() => {
+    const dbAutoFill = () => {
         songModel.find({}, (err, songs) =>{
             if (err) {
                 console.log(err);
@@ -49,28 +49,8 @@ module.exports = (app, originalPath, io) => {
                                         data = _.omit(_.extend(
                                             _.pick(data, necessaryKeys),
                                             {filename: file, year: data.date}), 'date');
-                                        if (data.artist && data.title) {
-                                            getLyrics(data).then(result => {
-                                                data = _.extend(data, {lyrics: result});
-                                                ++index;
-                                                songModel.create(data, (err, song) => {
-                                                    console.log(err?err:song._id);
-                                                });
-                                                if(index==files.length) {
-                                                    return;
-                                                }
-                                            }).catch(err => {
-                                                console.log(err, data.artist, data.title);
-                                                ++index;
-                                                songModel.create(data, (err, song) => {
-                                                    console.log(err?err:song._id);
-                                                });
-                                                if(index==files.length) {
-                                                    return;
-                                                }
-                                            });
-                                        }
-                                        else {
+                                        getLyrics(data).then(result => {
+                                            data = _.extend(data, {lyrics: result});
                                             ++index;
                                             songModel.create(data, (err, song) => {
                                                 console.log(err?err:song._id);
@@ -78,7 +58,16 @@ module.exports = (app, originalPath, io) => {
                                             if(index==files.length) {
                                                 return;
                                             }
-                                        }
+                                        }).catch(err => {
+                                            console.log(err, data.artist, data.title);
+                                            ++index;
+                                            songModel.create(data, (err, song) => {
+                                                console.log(err?err:song._id);
+                                            });
+                                            if(index==files.length) {
+                                                return;
+                                            }
+                                        });
                                     }
                                 });
                             }
@@ -91,7 +80,9 @@ module.exports = (app, originalPath, io) => {
                 });
             }
         });
-    }, 1000*2);
+    };
+
+    let dbAutoFillTimer = setInterval(dbAutoFill, 1000 * 2);
 
     app.get('/api/songs', (req, res, next) => {
         const {
@@ -159,10 +150,12 @@ module.exports = (app, originalPath, io) => {
     app.post('/api/songs/synchronize', (req, res, next) => {
         const songs = req.body;
         let index = 0;
+        clearInterval(dbAutoFillTimer);
         songs.forEach(songForUpdate => {
             findAndUpdateSong(songForUpdate._id, songForUpdate, filesPath).then(() => {
                 ++index;
                 if(index==songs.length) {
+                    dbAutoFillTimer = setInterval(dbAutoFill, 1000 * 2);
                     return res.end('ok');
                 }
             }).catch(err => res.end(err));
@@ -172,10 +165,12 @@ module.exports = (app, originalPath, io) => {
     app.post('/api/songs/synchronize/multiple', (req, res, next) => {
         const {properties, songs} = req.body;
         let index = 0;
+        clearInterval(dbAutoFillTimer);
         songs.forEach(songId => {
             findAndUpdateSong(songId, properties, filesPath).then(() => {
                 ++index;
                 if(index==songs.length) {
+                    dbAutoFillTimer = setInterval(dbAutoFill, 1000 * 2);
                     return res.end('ok');
                 }
             }).catch(err => res.end(err));
@@ -186,27 +181,33 @@ module.exports = (app, originalPath, io) => {
 
 function composeUrl(song) {
     const letter = song.artist[0].toLowerCase();
-    let artist = song.artist.toLowerCase().replace(/\W/g,'_');
+    let artist = song.artist.toLowerCase()
+        .replace(/&/g,'and').replace(/[()]/g,'').replace(/\W/g,'_');
     artist = artist[artist.length-1] == '_' ? artist.slice(0, -1) : artist;
-    let title = song.title.toLowerCase().replace(/\W/g,'_');
+    let title = song.title.toLowerCase()
+        .replace(/&/g,'and').replace(/[()]/g,'').replace(/\W/g,'_');
     title = title[title.length-1] == '_' ? title.slice(0, -1) : title;
     return `https://www.amalgama-lab.com/songs/${letter}/${artist}/${title}.html`;
 }
 
 function getLyrics(song) {
     return new Promise((resolve, reject) => {
-        request(composeUrl(song), (error, response, body) => {
-            if(error) reject(error);
-            else {
-                ret = body.match(/<div class="original">(\w|\W)*?<\/div>/ig);
-                if(!ret) reject('No lyrics');
+        if (!(song.artist || song.title))
+            reject("Can't get song without full data");
+        else {
+            request(composeUrl(song), (error, response, body) => {
+                if(error) reject(error);
                 else {
-                    ret = ret.map(line => line.replace(/(<div class="original">)|(<\/div>)/g, "").trim())
-                    .filter(line => line != '<br />').join('\n');
-                    resolve(ret);
+                    ret = body.match(/<div class="original">(\w|\W)*?<\/div>/ig);
+                    if(!ret) reject('No lyrics');
+                    else {
+                        ret = ret.map(line => line.replace(/(<div class="original">)|(<\/div>)/g, "").trim())
+                        .filter(line => line != '<br />').join('\n');
+                        resolve(ret);
+                    }
                 }
-            }
-        });
+            });
+        }
     });
 }
 
