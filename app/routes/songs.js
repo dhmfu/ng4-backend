@@ -15,12 +15,14 @@ module.exports = (app, originalPath, io) => {
     //
     // watcher.watch();
     // watcher.on('create', (event) => {
-    //     io.emit('add song', event.newPath);
-    //     console.log(event.newPath);
+    //     const filename = event.newPath;
+    //     if(filename.indexOf('.metadata') == -1 && filename.indexOf('.mp3') != -1)
+    //         io.emit('add song', event.newPath);
     // });
     // watcher.on('delete', (event) => {
-    //     io.emit('delete song', event.oldPath);
-    //     console.log(event.oldPath);
+    //     const filename = event.oldPath;
+    //     if(filename.indexOf('.metadata') == -1 && filename.indexOf('.mp3') != -1)
+    //         io.emit('delete song', event.oldPath);
     // });
 
     const dbAutoFill = () => {
@@ -35,6 +37,7 @@ module.exports = (app, originalPath, io) => {
                 'track', 'date'];
                 fs.readdir(filesPath, (err, files) => { //get all filenames
                     if (files.length) {
+                        files = files.filter(file => !!~file.indexOf('.mp3'));
                         files.forEach(file => {
                             if(!~songsFilenames.indexOf(file)) { //if file isn't in db
                                 ffmetadata.read(path.join(filesPath, file), (err, data) => {
@@ -82,7 +85,7 @@ module.exports = (app, originalPath, io) => {
         });
     };
 
-    let dbAutoFillTimer = setInterval(dbAutoFill, 1000 * 2);
+    let dbAutoFillTimer = setInterval(dbAutoFill, 1000 * 60 * 60);
 
     app.get('/api/songs', (req, res, next) => {
         const {
@@ -92,7 +95,8 @@ module.exports = (app, originalPath, io) => {
             title: title = "",
             album: album = "",
             year: year = "",
-            genre: genre = ""
+            genre: genre = "",
+            track: track = ""
         } = req.query;
         const callback = (err, songs) => {
             if (err) return res.send(err);
@@ -103,8 +107,9 @@ module.exports = (app, originalPath, io) => {
             title: new RegExp(title, "i"),
             album: new RegExp(album, "i"),
             year: new RegExp(year, "i"),
-            genre: new RegExp(genre, "i")
-        }).limit(+limit).skip(+skip).sort({artist: 1}).exec(callback);
+            genre: new RegExp(genre, "i"),
+            track: new RegExp(track, "i")
+        }).limit(+limit).skip(+skip).sort({artist: 1, title: 1}).exec(callback);
     });
 
     app.get('/api/songs/count', (req, res, next) => {
@@ -113,7 +118,8 @@ module.exports = (app, originalPath, io) => {
             title: title = "",
             album: album = "",
             year: year = "",
-            genre: genre = ""
+            genre: genre = "",
+            track: track = ""
         } = req.query;
         const callback = (err, songsLength) => {
             if (err) return res.send(err);
@@ -124,7 +130,8 @@ module.exports = (app, originalPath, io) => {
             title: new RegExp(title, "i"),
             album: new RegExp(album, "i"),
             year: new RegExp(year, "i"),
-            genre: new RegExp(genre, "i")
+            genre: new RegExp(genre, "i"),
+            track: new RegExp(track, "i")
         }).exec(callback);
     });
 
