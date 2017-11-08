@@ -109,7 +109,7 @@ module.exports = (app, originalPath, io) => {
             year: new RegExp(year, "i"),
             genre: new RegExp(genre, "i"),
             track: new RegExp(track, "i")
-        }).limit(+limit).skip(+skip).sort({artist: 1, title: 1}).exec(callback);
+        }).limit(+limit).skip(+skip).sort({artist: 1, year: 1}).exec(callback);
     });
 
     app.get('/api/songs/count', (req, res, next) => {
@@ -135,22 +135,11 @@ module.exports = (app, originalPath, io) => {
         }).exec(callback);
     });
 
-    app.get('/api/songs/autocomplete', (req, res, next) => {
-        songModel.find({}, (err, songs) => {
-            let response = {
-                artist: [],
-                title: [],
-                album: [],
-                track: [],
-                year: [],
-                genre: []
-            };
-            songs.forEach((song, index) => {
-                _.keys(response).forEach(key => {
-                    song[key] && response[key].push(song[key])
-                });
-            });
-            res.json(response);
+    app.get('/api/songs/autocompletes', (req, res, next) => {
+        const key = req.query.key, query = new RegExp(req.query.query, "i");
+        songModel.find({[key]: query}).distinct(key, (err, keys) => {
+            if (err) res.status(500).send(err);
+            else res.json(keys.slice(0, 10));
         });
     });
 
