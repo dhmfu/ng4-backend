@@ -37,7 +37,7 @@ module.exports = (app, originalPath, io) => {
                 'track', 'date'];
                 fs.readdir(filesPath, (err, files) => { //get all filenames
                     if (files.length) {
-                        files = files.filter(file => !!~file.indexOf('.mp3'));
+                        files = files.filter(file => file.match(/\.mp3$/));
                         files.forEach(file => {
                             if(!~songsFilenames.indexOf(file)) { //if file isn't in db
                                 ffmetadata.read(path.join(filesPath, file), (err, data) => {
@@ -85,7 +85,7 @@ module.exports = (app, originalPath, io) => {
         });
     };
 
-    let dbAutoFillTimer = setInterval(dbAutoFill, 1000 * 60 * 60);
+    let dbAutoFillTimer = setInterval(dbAutoFill, 1000 * 60);
 
     app.get('/api/songs', (req, res, next) => {
         const {
@@ -140,6 +140,36 @@ module.exports = (app, originalPath, io) => {
         songModel.find({[key]: query}).distinct(key, (err, keys) => {
             if (err) res.status(500).send(err);
             else res.json(keys.slice(0, 10));
+        });
+    });
+
+    app.get('/api/songs/playlist', (req, res, next) => {
+        songModel.aggregate([
+            {
+                $group: {
+                    _id: '$artist',
+                    filenames: { $push: '$filename'},
+                    count: { $sum: 1 }
+                }
+            },
+            { $match: { count: { $lte: 3} } },
+            { $sort: { _id: 1 } }
+        ], function (error, results) {
+            const FILE_PREFFIX = '/storage/49A7-1AFB/Music/';
+            let playlist = '';
+            results.map(result => result.filenames).forEach(result => {
+                result.forEach(filename => {
+                    playlist += FILE_PREFFIX+filename+'\n';
+                });
+            });
+            fs.writeFile('my playlist.m3u', playlist, err => {
+                if(err) res.json({err});
+                else {
+                    res.download('my playlist.m3u', err => {
+                        fs.unlink('my playlist.m3u', console.log);
+                    });
+                }
+            });
         });
     });
 
