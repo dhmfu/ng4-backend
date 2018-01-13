@@ -162,14 +162,7 @@ module.exports = (app, originalPath, io) => {
                     playlist += FILE_PREFFIX+filename+'\n';
                 });
             });
-            fs.writeFile('my playlist.m3u', playlist, err => {
-                if(err) res.json({err});
-                else {
-                    res.download('my playlist.m3u', err => {
-                        fs.unlink('my playlist.m3u', console.log);
-                    });
-                }
-            });
+            res.send(playlist);
         });
     });
 
